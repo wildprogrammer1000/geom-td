@@ -11,8 +11,8 @@
   const STAGES = [
     {
       id: 0,
-      name: "안개 골목",
-      desc: "첫 번째 길목",
+      name: "성문 앞",
+      desc: "왕국 첫 관문",
       startGold: 80,
       hpMul: 1,
       path: [
@@ -29,8 +29,8 @@
     },
     {
       id: 1,
-      name: "성수 다리",
-      desc: "다리 위 길",
+      name: "왕도",
+      desc: "성으로 향하는 길",
       startGold: 70,
       hpMul: 1.15,
       path: [
@@ -43,8 +43,8 @@
     },
     {
       id: 2,
-      name: "묵점",
-      desc: "먹물 거점",
+      name: "왕성",
+      desc: "마지막 방어선",
       startGold: 90,
       hpMul: 1.3,
       path: [
@@ -68,7 +68,7 @@
   const TOWERS = {
     single: {
       id: "single",
-      name: "단발",
+      name: "궁수",
       cost: 30,
       upCost: 40,
       range: 2.25,
@@ -82,7 +82,7 @@
     },
     splash: {
       id: "splash",
-      name: "광역",
+      name: "대포",
       cost: 50,
       upCost: 55,
       range: 1.95,
@@ -98,7 +98,7 @@
     },
     slow: {
       id: "slow",
-      name: "감속",
+      name: "마법탑",
       cost: 40,
       upCost: 45,
       range: 2.05,
@@ -116,42 +116,46 @@
     },
   };
 
+  const MOB_SPRITES = {
+    fast: "mob-fast",
+    mid: "mob-grunt",
+    heavy: "mob-grunt",
+    tank: "mob-tank",
+  };
+  const WALK_FPS = 8;
+
   const KINDS = {
     fast: {
       hp: 26,
       speed: 2.35,
       gold: 8,
-      sides: 3,
       r: 0.26,
       color: "#c45c4a",
-      name: "잔벌",
+      name: "정찰병",
     },
     mid: {
       hp: 62,
       speed: 1.42,
       gold: 12,
-      sides: 5,
       r: 0.34,
       color: "#d4a056",
-      name: "중갑",
+      name: "고블린",
     },
     heavy: {
       hp: 145,
       speed: 0.88,
       gold: 18,
-      sides: 6,
       r: 0.42,
       color: "#7a8a96",
-      name: "둔중",
+      name: "고블린",
     },
     tank: {
       hp: 780,
       speed: 0.64,
       gold: 90,
-      sides: 8,
       r: 0.56,
       color: "#8b3a3a",
-      name: "수호",
+      name: "오크",
     },
   };
 
@@ -210,6 +214,16 @@
   }
   const TILE_FALLBACK = { grass: "#3d6b38", path: "#8a7355", build: "#6b7a52" };
   let blockedSet = new Set();
+
+  const mobSprites = {};
+  for (const base of ["mob-grunt", "mob-fast", "mob-tank"]) {
+    for (const frame of ["a", "b"]) {
+      const key = base + "-" + frame;
+      const img = new Image();
+      img.src = "assets/" + key + ".png";
+      mobSprites[key] = img;
+    }
+  }
 
   let cell = 32;
   let dpr = 1;
@@ -551,6 +565,8 @@
       e.x = p.x;
       e.y = p.y;
       e.ang = p.ang;
+      e.vx = Math.cos(p.ang);
+      e.vy = Math.sin(p.ang);
     }
     for (const t of G.towers) {
       t.x = (t.c + 0.5) * cell;
@@ -759,13 +775,15 @@
       maxHp: k.hp * hpMul,
       speed: k.speed * spMul * cell,
       gold: k.gold + Math.floor(w * 1.2),
-      sides: k.sides,
       r: k.r * cell,
       color: k.color,
       prog: 0,
       x: p.x,
       y: p.y,
       ang: p.ang,
+      vx: Math.cos(p.ang),
+      vy: Math.sin(p.ang),
+      animT: 0,
       flash: 0,
       slowT: 0,
       slowF: 1,
@@ -791,7 +809,7 @@
       y: (r + 0.5) * cell,
       up: false,
       cd: 0,
-      ang: -Math.PI / 2,
+      facing: 1,
       pop: 0,
     };
     G.towers.push(t);
@@ -849,13 +867,14 @@
   }
 
   function fire(t, e, st) {
-    t.ang = Math.atan2(e.y - t.y, e.x - t.x);
+    const ang = Math.atan2(e.y - t.y, e.x - t.x);
+    t.facing = e.x >= t.x ? 1 : -1;
     const spd = (t.type === "splash" ? 6.2 : 9.2) * cell;
     G.shots.push({
-      x: t.x + Math.cos(t.ang) * cell * 0.28,
-      y: t.y + Math.sin(t.ang) * cell * 0.28,
-      vx: Math.cos(t.ang) * spd,
-      vy: Math.sin(t.ang) * spd,
+      x: t.x + Math.cos(ang) * cell * 0.28,
+      y: t.y + Math.sin(ang) * cell * 0.28,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
       target: e,
       type: t.type,
       dmg: st.dmg,
@@ -865,14 +884,6 @@
       color: st.color,
       r: t.type === "splash" ? 4.5 : 3.2,
       life: 1.4,
-    });
-    G.fx.push({
-      kind: "muzzle",
-      x: t.x + Math.cos(t.ang) * cell * 0.32,
-      y: t.y + Math.sin(t.ang) * cell * 0.32,
-      t: 0,
-      max: 0.12,
-      color: st.color,
     });
     if (t.type === "splash") sfx("splash");
     else sfx("shoot");
@@ -1307,18 +1318,20 @@
       e.x = p.x;
       e.y = p.y;
       e.ang = p.ang;
+      e.vx = Math.cos(p.ang);
+      e.vy = Math.sin(p.ang);
+      e.animT += dt;
     }
 
     for (const t of G.towers) {
       t.pop = Math.max(0, t.pop - dt * 3.5);
       t.cd -= dt;
       const st = towerStats(t);
-      if (t.cd <= 0) {
-        const tgt = pickTarget(t, st.range);
-        if (tgt) {
-          fire(t, tgt, st);
-          t.cd = st.fire;
-        }
+      const tgt = pickTarget(t, st.range);
+      if (tgt) t.facing = tgt.x >= t.x ? 1 : -1;
+      if (t.cd <= 0 && tgt) {
+        fire(t, tgt, st);
+        t.cd = st.fire;
       }
     }
 
@@ -1373,16 +1386,30 @@
   }
 
   // ---------- draw ----------
-  function drawPoly(x, y, r, sides, rot) {
-    ctx.beginPath();
-    for (let i = 0; i < sides; i++) {
-      const a = rot + (i / sides) * TAU - Math.PI / 2;
-      const px = x + Math.cos(a) * r;
-      const py = y + Math.sin(a) * r;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+  function drawSprite(img, x, y, maxSize, opts) {
+    if (!img || !img.complete || !img.naturalWidth) return false;
+    const alpha = (opts && opts.alpha) != null ? opts.alpha : 1;
+    const scale = (opts && opts.scale) != null ? opts.scale : 1;
+    const facing = (opts && opts.facing) != null ? opts.facing : 1;
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+    const fit = maxSize * scale;
+    const aspect = iw / ih;
+    let dw, dh;
+    if (aspect >= 1) {
+      dw = fit;
+      dh = fit / aspect;
+    } else {
+      dh = fit;
+      dw = fit * aspect;
     }
-    ctx.closePath();
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    if (facing < 0) ctx.scale(-1, 1);
+    ctx.drawImage(img, -dw / 2, -dh / 2 - fit * 0.06, dw, dh);
+    ctx.restore();
+    return true;
   }
 
   function draw() {
@@ -1401,12 +1428,12 @@
     // entrance / exit marks
     const a = waypoints[0],
       b = waypoints[waypoints.length - 1];
-    ctx.fillStyle = "rgba(196,165,116,0.35)";
+    ctx.fillStyle = "rgba(212,180,90,0.75)";
     ctx.font = "bold " + Math.max(10, cell * 0.28) + "px 'Noto Sans KR', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("입", a.x, a.y);
-    ctx.fillStyle = "rgba(196,92,74,0.55)";
+    ctx.fillStyle = "rgba(180,70,50,0.8)";
     ctx.fillText("출", b.x, b.y);
 
     // placement ghost / hover preview
@@ -1435,14 +1462,14 @@
     drawFx();
 
     if (G.flashLeak > 0) {
-      ctx.fillStyle = "rgba(180,40,30," + G.flashLeak * 0.22 + ")";
+      ctx.fillStyle = "rgba(180,40,30," + G.flashLeak * 0.18 + ")";
       ctx.fillRect(0, 0, W, H);
     }
 
     // vignette
-    const g = ctx.createRadialGradient(W * 0.5, H * 0.5, H * 0.2, W * 0.5, H * 0.5, H * 0.75);
+    const g = ctx.createRadialGradient(W * 0.5, H * 0.5, H * 0.2, W * 0.5, H * 0.5, H * 0.78);
     g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, "rgba(8,6,4,0.38)");
+    g.addColorStop(1, "rgba(20,30,16,0.28)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
@@ -1464,8 +1491,8 @@
     const scale = (opts && opts.scale) != null ? opts.scale : 1;
     const invalid = opts && opts.invalid;
     const pop = (opts && opts.pop) || 0;
+    const facing = (opts && opts.facing) != null ? opts.facing : 1;
     const img = towerSprites[type];
-    const size = cell * 0.9 * scale;
 
     ctx.save();
     ctx.translate(x, y);
@@ -1474,49 +1501,25 @@
       ctx.scale(sc, sc);
     }
 
-    ctx.beginPath();
-    ctx.ellipse(0, cell * 0.2, cell * 0.3, cell * 0.1, 0, 0, TAU);
-    ctx.fillStyle = "rgba(0,0,0,0.38)";
-    ctx.fill();
-
-    if (img && img.complete && img.naturalWidth) {
-      ctx.globalAlpha = alpha;
-      ctx.drawImage(img, -size / 2, -size / 2 - cell * 0.04, size, size);
-      if (invalid) {
-        ctx.globalAlpha = alpha * 0.55;
-        ctx.fillStyle = "rgba(196,92,74,0.42)";
-        ctx.fillRect(-size / 2, -size / 2 - cell * 0.04, size, size);
-      }
-    } else {
+    const drew = drawSprite(img, 0, 0, cell * 0.92, { alpha, scale, facing });
+    if (!drew) {
       const d = TOWERS[type];
       ctx.globalAlpha = alpha;
-      if (type === "single") {
-        drawPoly(0, 0, cell * 0.3, 4, 0);
-        ctx.fillStyle = d.colorDim;
-        ctx.fill();
-        ctx.strokeStyle = d.color;
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-      } else if (type === "splash") {
-        drawPoly(0, 0, cell * 0.32, 6, 0);
-        ctx.fillStyle = d.colorDim;
-        ctx.fill();
-        ctx.strokeStyle = d.color;
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.arc(0, 0, cell * 0.3, 0, TAU);
-        ctx.fillStyle = d.colorDim;
-        ctx.fill();
-        ctx.strokeStyle = d.color;
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-      }
-      if (invalid) {
-        ctx.fillStyle = "rgba(196,92,74,0.35)";
-        ctx.fill();
-      }
+      ctx.beginPath();
+      ctx.arc(0, 0, cell * 0.28, 0, TAU);
+      ctx.fillStyle = d.colorDim;
+      ctx.fill();
+      ctx.strokeStyle = d.color;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+    }
+    if (invalid) {
+      ctx.globalAlpha = alpha * 0.45;
+      ctx.strokeStyle = "rgba(196,92,74,0.85)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, cell * 0.38, 0, TAU);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -1560,7 +1563,7 @@
       ctx.strokeStyle = valid ? "rgba(94,200,200,0.5)" : "rgba(196,92,74,0.65)";
       ctx.lineWidth = 1.6;
       ctx.stroke();
-      drawTowerArt((c + 0.5) * cell, (r + 0.5) * cell, type, { alpha, invalid: !valid });
+      drawTowerArt((c + 0.5) * cell, (r + 0.5) * cell, type, { alpha, invalid: !valid, facing: 1 });
     } else if (atPointer) {
       drawTowerArt(px, py, type, { alpha: alpha * 0.85, scale: 0.95, invalid: true });
     }
@@ -1569,7 +1572,7 @@
   function drawTowers() {
     for (const t of G.towers) {
       const pop = t.pop > 0 ? t.pop : 0;
-      drawTowerArt(t.x, t.y, t.type, { pop });
+      drawTowerArt(t.x, t.y, t.type, { pop, facing: t.facing || 1 });
 
       if (t.up) {
         ctx.beginPath();
@@ -1582,41 +1585,39 @@
 
   function drawEnemies() {
     for (const e of G.enemies) {
-      const pop = 0.35 + 0.65 * Math.min(1, e.pop === 0 ? 1 : e.pop);
-      // first spawn pop is 0 and grows; treat 0 after spawn start
       const sc = e.pop < 1 ? 0.2 + 0.95 * e.pop : 1;
-      ctx.save();
-      ctx.translate(e.x, e.y);
-      ctx.rotate(e.ang);
-      ctx.scale(sc, sc);
+      const spriteBase = MOB_SPRITES[e.kind] || "mob-grunt";
+      const walkFrame = Math.floor(e.animT * WALK_FPS) % 2 === 0 ? "a" : "b";
+      const img = mobSprites[spriteBase + "-" + walkFrame];
+      const facing = (e.vx != null ? e.vx : Math.cos(e.ang)) >= 0 ? 1 : -1;
 
       if (e.slowT > 0) {
         ctx.beginPath();
-        ctx.arc(0, 0, e.r * 1.45, 0, TAU);
+        ctx.arc(e.x, e.y, e.r * 1.45, 0, TAU);
         ctx.fillStyle = "rgba(155,122,212,0.22)";
         ctx.fill();
       }
 
-      drawPoly(0, 0, e.r, e.sides, 0);
-      ctx.fillStyle = e.color;
-      ctx.fill();
-      ctx.strokeStyle = "rgba(10,8,6,0.55)";
-      ctx.lineWidth = 1.4;
-      ctx.stroke();
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.scale(sc, sc);
+
+      const drew = drawSprite(img, 0, 0, e.r * 2.4, { facing });
+      if (!drew) {
+        ctx.beginPath();
+        ctx.arc(0, 0, e.r, 0, TAU);
+        ctx.fillStyle = e.color;
+        ctx.fill();
+      }
 
       if (e.flash > 0) {
-        ctx.globalAlpha = e.flash * 0.85;
-        drawPoly(0, 0, e.r, e.sides, 0);
+        ctx.globalAlpha = e.flash * 0.55;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.r * 1.05, 0, TAU);
         ctx.fillStyle = "#fff8ee";
         ctx.fill();
         ctx.globalAlpha = 1;
       }
-
-      // inner mark
-      ctx.beginPath();
-      ctx.arc(0, 0, Math.max(1.5, e.r * 0.18), 0, TAU);
-      ctx.fillStyle = "rgba(10,8,6,0.45)";
-      ctx.fill();
       ctx.restore();
 
       if (e.maxHp > 80 || e.kind === "tank" || e.kind === "heavy") {
@@ -1662,13 +1663,6 @@
         ctx.strokeStyle = f.color;
         ctx.lineWidth = 2.4 * (1 - u);
         ctx.stroke();
-        ctx.globalAlpha = 1;
-      } else if (f.kind === "muzzle") {
-        ctx.globalAlpha = 1 - u;
-        ctx.beginPath();
-        ctx.arc(f.x, f.y, 5 * (1 - u), 0, TAU);
-        ctx.fillStyle = "#fff4d8";
-        ctx.fill();
         ctx.globalAlpha = 1;
       }
     }

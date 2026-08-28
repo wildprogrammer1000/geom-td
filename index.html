@@ -5,23 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#12100c" />
+  <meta name="theme-color" content="#1a2e1a" />
   <title>결로 — GeomTD</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=Noto+Serif+KR:wght@600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #12100c;
-      --paper: #1a1712;
-      --ink: #e8dcc8;
-      --muted: #8a7e6c;
-      --gold: #c4a574;
-      --cyan: #5ec8c8;
-      --amber: #e0a040;
-      --violet: #9b7ad4;
-      --danger: #c45c4a;
-      --line: rgba(196, 165, 116, 0.22);
+      --bg: #1a2418;
+      --paper: #f4ead4;
+      --ink: #2a2418;
+      --muted: #5c6b52;
+      --gold: #b8860b;
+      --forest: #2d5a3a;
+      --stone: #6b6358;
+      --cyan: #3a8a7a;
+      --amber: #c47a20;
+      --violet: #5a6eb8;
+      --danger: #a84030;
+      --line: rgba(184, 134, 11, 0.28);
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-right: env(safe-area-inset-right, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -32,8 +34,10 @@
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html, body {
       height: 100%;
-      background: var(--bg);
-      color: var(--ink);
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(45, 90, 58, 0.35), transparent 55%),
+        linear-gradient(180deg, #1a2418 0%, #121a10 100%);
+      color: var(--paper);
       font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
       overflow: hidden;
       touch-action: manipulation;
@@ -59,6 +63,7 @@
       font-family: "Noto Serif KR", serif;
       font-size: 26px;
       letter-spacing: 0.1em;
+      color: var(--paper);
     }
     .camp-header .actions { display: flex; gap: 8px; }
     .camp-map {
@@ -75,7 +80,7 @@
     .map-connector {
       width: 2px;
       height: 36px;
-      background: linear-gradient(180deg, rgba(196,165,116,0.05), rgba(196,165,116,0.35), rgba(196,165,116,0.05));
+      background: linear-gradient(180deg, rgba(184,134,11,0.05), rgba(184,134,11,0.45), rgba(184,134,11,0.05));
       flex-shrink: 0;
     }
     .map-node {
@@ -86,9 +91,9 @@
       border-radius: 18px;
       border: 1px solid var(--line);
       background:
-        radial-gradient(ellipse at 30% 20%, rgba(196,165,116,0.12), transparent 55%),
-        linear-gradient(160deg, #221e18, #17140f);
-      color: var(--ink);
+        radial-gradient(ellipse at 30% 20%, rgba(244,234,212,0.18), transparent 55%),
+        linear-gradient(160deg, #3d4a32, #2a3424);
+      color: var(--paper);
       text-align: left;
       cursor: pointer;
       box-shadow: 0 10px 28px rgba(0,0,0,0.35);
@@ -111,7 +116,7 @@
     }
     .map-node .node-desc {
       font-size: 11px;
-      color: var(--muted);
+      color: rgba(244, 234, 212, 0.65);
       margin-top: 4px;
       line-height: 1.4;
     }
@@ -129,7 +134,7 @@
     .camp-footer {
       text-align: center;
       font-size: 12px;
-      color: var(--muted);
+      color: rgba(244, 234, 212, 0.55);
       flex-shrink: 0;
     }
 
@@ -152,6 +157,7 @@
       font-size: 22px;
       flex: 1;
       letter-spacing: 0.08em;
+      color: var(--paper);
     }
     .shop-list {
       flex: 1;
@@ -168,10 +174,11 @@
       padding: 16px;
       border-radius: 14px;
       border: 1px solid var(--line);
-      background: #1e1a14;
+      background: linear-gradient(160deg, #3d4a32, #2a3424);
+      color: var(--paper);
     }
-    .shop-row h3 { font-size: 15px; margin-bottom: 4px; }
-    .shop-row p { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .shop-row h3 { font-size: 15px; margin-bottom: 4px; color: var(--paper); }
+    .shop-row p { font-size: 12px; color: rgba(244, 234, 212, 0.65); line-height: 1.45; }
     .shop-row .badge {
       font-size: 11px;
       font-weight: 700;
@@ -190,7 +197,7 @@
       flex-shrink: 0;
     }
 
-    #screen-battle { height: 100%; }
+    #screen-battle { height: 100%; background: var(--bg); }
     #screen-battle #app { height: 100%; }
 
     .card .stars {
@@ -208,14 +215,14 @@
     }
     .card .btn-row button { min-width: 120px; }
     .card .btn-secondary {
-      background: #221e18;
-      color: var(--muted);
+      background: #2a3424;
+      color: rgba(244, 234, 212, 0.7);
       border-color: var(--line);
     }
     #btn-menu { min-width: 44px; padding: 0 10px; font-size: 18px; }
     .stage-label {
       font-size: 11px;
-      color: var(--muted);
+      color: rgba(244, 234, 212, 0.55);
       letter-spacing: 0.04em;
     }
 
@@ -261,10 +268,11 @@
       font-weight: 700;
       letter-spacing: 0.08em;
       line-height: 1;
+      color: var(--paper);
     }
     .brand .sub {
       font-size: 9px;
-      color: var(--muted);
+      color: rgba(244, 234, 212, 0.55);
       letter-spacing: 0.14em;
       text-transform: uppercase;
     }
@@ -276,10 +284,10 @@
       font-weight: 600;
       flex-wrap: nowrap;
     }
-    .hud-stats span { white-space: nowrap; }
+    .hud-stats span { white-space: nowrap; color: var(--paper); }
     .hud-stats .gold { color: var(--gold); }
     .hud-stats .lives { color: #e08a7a; }
-    .hud-stats .wave { color: var(--ink); }
+    .hud-stats .wave { color: var(--paper); }
 
     #stage {
       grid-area: stage;
@@ -294,7 +302,7 @@
     canvas {
       display: block;
       border-radius: 14px;
-      box-shadow: 0 0 0 1px rgba(196, 165, 116, 0.14), 0 18px 40px rgba(0,0,0,0.45);
+      box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.25), 0 18px 40px rgba(0,0,0,0.45);
       touch-action: none;
       max-width: 100%;
       max-height: 100%;
@@ -310,9 +318,9 @@
     #tower-panel.visible { pointer-events: auto; }
     .up-btn {
       position: absolute;
-      background: #2a241c;
+      background: linear-gradient(180deg, #f4ead4, #e8dcc8);
       border: 1px solid var(--gold);
-      color: var(--gold);
+      color: var(--ink);
       width: 92px;
       height: 52px;
       border-radius: 14px;
@@ -347,10 +355,11 @@
       min-height: 72px;
       padding: 6px 4px 8px;
       border-radius: 14px;
-      background: #1e1a14;
-      border: 2px solid var(--line);
+      background: linear-gradient(180deg, #f4ead4, #e8dcc8);
+      border: 2px solid rgba(184, 134, 11, 0.35);
       cursor: pointer;
       transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      color: var(--ink);
     }
     .tray-item img {
       width: 44px;
@@ -377,12 +386,12 @@
     .tray-item.slow { color: var(--violet); }
     .tray-item.selected {
       border-color: var(--gold);
-      background: #2a2418;
-      box-shadow: 0 0 0 1px rgba(196, 165, 116, 0.25), inset 0 0 20px rgba(196, 165, 116, 0.06);
+      background: #fff8e8;
+      box-shadow: 0 0 0 1px rgba(184, 134, 11, 0.35), inset 0 0 20px rgba(184, 134, 11, 0.08);
     }
-    .tray-item.single.selected { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(94,200,200,0.3), inset 0 0 20px rgba(94,200,200,0.08); }
-    .tray-item.splash.selected { border-color: var(--amber); box-shadow: 0 0 0 1px rgba(224,160,64,0.3), inset 0 0 20px rgba(224,160,64,0.08); }
-    .tray-item.slow.selected { border-color: var(--violet); box-shadow: 0 0 0 1px rgba(155,122,212,0.3), inset 0 0 20px rgba(155,122,212,0.08); }
+    .tray-item.single.selected { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(58,138,122,0.35), inset 0 0 20px rgba(58,138,122,0.08); }
+    .tray-item.splash.selected { border-color: var(--amber); box-shadow: 0 0 0 1px rgba(196,122,32,0.35), inset 0 0 20px rgba(196,122,32,0.08); }
+    .tray-item.slow.selected { border-color: var(--violet); box-shadow: 0 0 0 1px rgba(90,110,184,0.35), inset 0 0 20px rgba(90,110,184,0.08); }
     .tray-item.cant-afford {
       opacity: 0.38;
       cursor: default;
@@ -402,7 +411,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(10, 8, 6, 0.72);
+      background: rgba(26, 36, 24, 0.72);
       z-index: 5;
       border-radius: 14px;
       backdrop-filter: blur(4px);
@@ -413,12 +422,17 @@
       text-align: center;
       padding: 22px 18px;
       max-width: min(300px, 100%);
+      background: linear-gradient(180deg, #f4ead4, #e8dcc8);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      color: var(--ink);
     }
     .card h2 {
       font-family: "Noto Serif KR", serif;
       font-size: 28px;
       margin-bottom: 8px;
       letter-spacing: 0.12em;
+      color: var(--ink);
     }
     .card p {
       color: var(--muted);
@@ -430,8 +444,8 @@
       min-width: 140px;
       min-height: 48px;
       font-size: 16px;
-      background: #2c261c;
-      color: var(--gold);
+      background: linear-gradient(180deg, #3d4a32, #2d5a3a);
+      color: var(--paper);
       border-color: var(--gold);
     }
 
@@ -447,8 +461,8 @@
       font-family: inherit;
       font-weight: 700;
       border: 1px solid var(--line);
-      background: #221e18;
-      color: var(--ink);
+      background: linear-gradient(180deg, #3d4a32, #2a3424);
+      color: var(--paper);
       border-radius: 12px;
       min-height: 44px;
       padding: 0 14px;
@@ -463,17 +477,17 @@
     }
     #btn-wave {
       flex: 1;
-      background: linear-gradient(180deg, #2c261c, #221c16);
-      border-color: rgba(196, 165, 116, 0.4);
-      color: var(--gold);
+      background: linear-gradient(180deg, #4a6b3a, #2d5a3a);
+      border-color: rgba(184, 134, 11, 0.5);
+      color: var(--paper);
       font-size: 15px;
     }
-    #btn-pause, #btn-restart { min-width: 64px; font-size: 13px; color: var(--muted); }
+    #btn-pause, #btn-restart { min-width: 64px; font-size: 13px; color: rgba(244, 234, 212, 0.75); }
 
     .hint {
       grid-area: hint;
       font-size: 11px;
-      color: var(--muted);
+      color: rgba(244, 234, 212, 0.55);
       text-align: center;
       flex-shrink: 0;
       min-height: 14px;
@@ -596,17 +610,17 @@
     </header>
     <div class="camp-map" id="camp-map">
       <button class="map-node" type="button" data-stage="0" id="node-0">
-        <div><div class="node-title">안개 골목</div><div class="node-desc">첫 번째 길목이에요.</div></div>
+        <div><div class="node-title">성문 앞</div><div class="node-desc">왕국 첫 관문이에요.</div></div>
         <span class="node-stars" id="stars-0">☆☆☆</span>
       </button>
       <div class="map-connector"></div>
       <button class="map-node" type="button" data-stage="1" id="node-1" disabled>
-        <div><div class="node-title">성수 다리</div><div class="node-desc">다리 위 발자국이 몰려와요.</div></div>
+        <div><div class="node-title">왕도</div><div class="node-desc">성으로 향하는 길이에요.</div></div>
         <span class="node-stars" id="stars-1">☆☆☆</span>
       </button>
       <div class="map-connector"></div>
       <button class="map-node" type="button" data-stage="2" id="node-2" disabled>
-        <div><div class="node-title">묵점</div><div class="node-desc">먹물이 고인 마지막 거점이에요.</div></div>
+        <div><div class="node-title">왕성</div><div class="node-desc">마지막 방어선이에요.</div></div>
         <span class="node-stars" id="stars-2">☆☆☆</span>
       </button>
     </div>
@@ -667,15 +681,15 @@
       <div id="tower-tray" class="tower-tray">
         <button class="tray-item single" type="button" data-type="single">
           <img src="assets/tower-single.png" alt="" draggable="false" />
-          <span class="tray-meta"><span class="tray-name">단발</span><span class="tray-cost">30</span></span>
+          <span class="tray-meta"><span class="tray-name">궁수</span><span class="tray-cost">30</span></span>
         </button>
         <button class="tray-item splash" type="button" data-type="splash">
           <img src="assets/tower-splash.png" alt="" draggable="false" />
-          <span class="tray-meta"><span class="tray-name">광역</span><span class="tray-cost">50</span></span>
+          <span class="tray-meta"><span class="tray-name">대포</span><span class="tray-cost">50</span></span>
         </button>
         <button class="tray-item slow" type="button" data-type="slow">
           <img src="assets/tower-slow.png" alt="" draggable="false" />
-          <span class="tray-meta"><span class="tray-name">감속</span><span class="tray-cost">40</span></span>
+          <span class="tray-meta"><span class="tray-name">마법탑</span><span class="tray-cost">40</span></span>
         </button>
       </div>
     </aside>
