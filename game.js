@@ -205,6 +205,16 @@
     towerSprites[id] = img;
   }
 
+  const TILE_KEYS = ["grass", "path", "build"];
+  const tileSprites = {};
+  for (const key of TILE_KEYS) {
+    const img = new Image();
+    img.src = "assets/tile-" + key + ".png";
+    tileSprites[key] = img;
+  }
+  const TILE_FALLBACK = { grass: "#3d6b38", path: "#8a7355", build: "#6b7a52" };
+  let blockedSet = new Set();
+
   const mobSprites = {};
   for (const base of ["mob-grunt", "mob-fast", "mob-tank"]) {
     for (const frame of ["a", "b"]) {
@@ -214,9 +224,6 @@
       mobSprites[key] = img;
     }
   }
-
-  const battlefieldImg = new Image();
-  battlefieldImg.src = "assets/battlefield.png";
 
   let cell = 32;
   let dpr = 1;
@@ -416,6 +423,70 @@
       g = (n >> 8) & 255,
       b = n & 255;
     return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+  }
+
+  function tileForCell(c, r) {
+    const key = occupyKey(c, r);
+    if (pathSet.has(key)) return "path";
+    if (blockedSet.has(key)) return "grass";
+    return "build";
+  }
+
+  function drawTileBoard(W, H) {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const kind = tileForCell(c, r);
+        const img = tileSprites[kind];
+        const x = c * cell;
+        const y = r * cell;
+        if (img && img.complete && img.naturalWidth) {
+          ctx.drawImage(img, x, y, cell, cell);
+        } else {
+          ctx.fillStyle = TILE_FALLBACK[kind];
+          ctx.fillRect(x, y, cell, cell);
+        }
+      }
+    }
+
+    // subtle cell seams
+    ctx.strokeStyle = "rgba(0,0,0,0.1)";
+    ctx.lineWidth = 1;
+    for (let c = 0; c <= COLS; c++) {
+      ctx.beginPath();
+      ctx.moveTo(c * cell + 0.5, 0);
+      ctx.lineTo(c * cell + 0.5, H);
+      ctx.stroke();
+    }
+    for (let r = 0; r <= ROWS; r++) {
+      ctx.beginPath();
+      ctx.moveTo(0, r * cell + 0.5);
+      ctx.lineTo(W, r * cell + 0.5);
+      ctx.stroke();
+    }
+  }
+
+  function drawPathHighlight() {
+    ctx.save();
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (!pathSet.has(occupyKey(c, r))) continue;
+        const x = c * cell;
+        const y = r * cell;
+        ctx.fillStyle = "rgba(196,165,116,0.1)";
+        ctx.fillRect(x, y, cell, cell);
+      }
+    }
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(196,165,116,0.22)";
+    ctx.lineWidth = Math.max(1, cell * 0.05);
+    ctx.setLineDash([4, 7]);
+    ctx.beginPath();
+    ctx.moveTo(waypoints[0].x, waypoints[0].y);
+    for (let i = 1; i < waypoints.length; i++) ctx.lineTo(waypoints[i].x, waypoints[i].y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   function rebuildWaypoints() {
@@ -1351,43 +1422,8 @@
       ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m);
     }
 
-    if (battlefieldImg.complete && battlefieldImg.naturalWidth) {
-      const iw = battlefieldImg.naturalWidth;
-      const ih = battlefieldImg.naturalHeight;
-      const scale = Math.max(W / iw, H / ih);
-      const dw = iw * scale;
-      const dh = ih * scale;
-      ctx.drawImage(battlefieldImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    } else {
-      ctx.fillStyle = "#3a5c32";
-      ctx.fillRect(0, 0, W, H);
-    }
-
-    // subtle buildable tile tint
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (pathSet.has(occupyKey(c, r))) continue;
-        const x = c * cell;
-        const y = r * cell;
-        ctx.fillStyle = r % 2 === c % 2 ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)";
-        ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
-      }
-    }
-
-    // path highlight overlay
-    ctx.save();
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(139,90,43,0.28)";
-    ctx.lineWidth = cell * 0.72;
-    ctx.beginPath();
-    ctx.moveTo(waypoints[0].x, waypoints[0].y);
-    for (let i = 1; i < waypoints.length; i++) ctx.lineTo(waypoints[i].x, waypoints[i].y);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(210,170,90,0.12)";
-    ctx.lineWidth = cell * 0.52;
-    ctx.stroke();
-    ctx.restore();
+    drawTileBoard(W, H);
+    drawPathHighlight();
 
     // entrance / exit marks
     const a = waypoints[0],
@@ -1402,16 +1438,6 @@
 
     // placement ghost / hover preview
     drawPlacementGhost();
-
-    // grid dots
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
-    for (let r = 0; r <= ROWS; r++) {
-      for (let c = 0; c <= COLS; c++) {
-        ctx.beginPath();
-        ctx.arc(c * cell, r * cell, 1.1, 0, TAU);
-        ctx.fill();
-      }
-    }
 
     // range of selected tower
     if (G.sel && G.sel.type === "tower") {

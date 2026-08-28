@@ -49,7 +49,7 @@
 
 - index.html — 캠페인·상점·전투 UI, 반응형 스타일
 - game.js — 맵·전투·캠페인·세이브·입력
-- assets/ — 타워 스프라이트 (tower-single/splash/slow.png)
+- assets/ — 타일 텍스처 (tile-grass/path/build.png), 타워 스프라이트 (tower-single/splash/slow.png)
 - README.md — 이 문서
 
 의존성 없음.
