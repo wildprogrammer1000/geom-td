@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#12100c" />
+  <title>결로 — GeomTD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&family=Noto+Serif+KR:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #12100c;
+      --paper: #1a1712;
+      --ink: #e8dcc8;
+      --muted: #8a7e6c;
+      --gold: #c4a574;
+      --cyan: #5ec8c8;
+      --amber: #e0a040;
+      --violet: #9b7ad4;
+      --danger: #c45c4a;
+      --line: rgba(196, 165, 116, 0.22);
+      --safe: env(safe-area-inset-top, 0px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+    #app {
+      height: 100%;
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      padding: calc(8px + var(--safe)) 10px 10px;
+      gap: 8px;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 10px;
+      align-items: end;
+      flex-shrink: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .brand h1 {
+      font-family: "Noto Serif KR", "Apple Myungjo", serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1;
+    }
+    .brand .sub {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .hud-stats {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .hud-stats span { white-space: nowrap; }
+    .hud-stats .gold { color: var(--gold); }
+    .hud-stats .lives { color: #e08a7a; }
+    .hud-stats .wave { color: var(--ink); }
+    .bar {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      font-family: inherit;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      background: #221e18;
+      color: var(--ink);
+      border-radius: 12px;
+      min-height: 44px;
+      padding: 0 14px;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+    }
+    button:active { transform: scale(0.97); }
+    button:disabled {
+      opacity: 0.38;
+      cursor: default;
+      transform: none;
+    }
+    #btn-wave {
+      flex: 1;
+      background: linear-gradient(180deg, #2c261c, #221c16);
+      border-color: rgba(196, 165, 116, 0.4);
+      color: var(--gold);
+      font-size: 15px;
+    }
+    #btn-pause, #btn-restart { min-width: 72px; font-size: 13px; color: var(--muted); }
+    #stage {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      display: block;
+      border-radius: 14px;
+      box-shadow: 0 0 0 1px rgba(196, 165, 116, 0.14), 0 18px 40px rgba(0,0,0,0.45);
+      touch-action: none;
+      max-width: 100%;
+      max-height: 100%;
+    }
+    #radial, #tower-panel {
+      position: absolute;
+      pointer-events: none;
+      z-index: 3;
+      width: 0;
+      height: 0;
+      overflow: visible;
+    }
+    #radial.visible, #tower-panel.visible { pointer-events: auto; }
+    .rad-btn, .up-btn {
+      position: absolute;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      line-height: 1.15;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.45);
+      pointer-events: auto;
+      padding: 0;
+      gap: 1px;
+    }
+    .rad-btn small, .up-btn small { font-size: 10px; font-weight: 600; opacity: 0.85; }
+    .rad-btn.single { background: #163536; border-color: var(--cyan); color: var(--cyan); }
+    .rad-btn.splash { background: #3a2a12; border-color: var(--amber); color: var(--amber); }
+    .rad-btn.slow { background: #2a2040; border-color: var(--violet); color: var(--violet); }
+    .up-btn { background: #2a241c; border-color: var(--gold); color: var(--gold); width: 92px; height: 52px; border-radius: 14px; }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 8, 6, 0.72);
+      z-index: 5;
+      border-radius: 14px;
+      backdrop-filter: blur(4px);
+    }
+    #overlay.hidden { display: none; }
+    .card {
+      text-align: center;
+      padding: 28px 24px;
+      max-width: 300px;
+    }
+    .card h2 {
+      font-family: "Noto Serif KR", serif;
+      font-size: 32px;
+      margin-bottom: 8px;
+      letter-spacing: 0.12em;
+    }
+    .card p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+    .card button {
+      min-width: 140px;
+      min-height: 48px;
+      font-size: 16px;
+      background: #2c261c;
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      flex-shrink: 0;
+      min-height: 16px;
+    }
+    @media (max-width: 400px) {
+      .brand h1 { font-size: 22px; }
+      .hud-stats { font-size: 12px; gap: 8px; }
+      button { min-height: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <h1>결로</h1>
+        <span class="sub">GeomTD</span>
+      </div>
+      <div class="hud-stats">
+        <span class="wave">웨이브 <b id="stat-wave">0</b>/8</span>
+        <span class="gold">골드 <b id="stat-gold">80</b></span>
+        <span class="lives">목숨 <b id="stat-lives">20</b></span>
+      </div>
+      <div class="bar">
+        <button id="btn-wave" type="button">다음 웨이브</button>
+        <button id="btn-pause" type="button">일시정지</button>
+        <button id="btn-restart" type="button">다시 시작</button>
+      </div>
+    </header>
+    <div id="stage">
+      <canvas id="game"></canvas>
+      <div id="radial"></div>
+      <div id="tower-panel"></div>
+      <div id="overlay">
+        <div class="card">
+          <h2>결로</h2>
+          <p>빈 칸을 눌러 타워를 세우고,<br/>길을 따라오는 것들을 막으세요.<br/>단발 · 광역 · 감속, 한 번 강화할 수 있어요.</p>
+          <button id="btn-start" type="button">시작</button>
+        </div>
+      </div>
+    </div>
+    <p class="hint" id="hint">빈 타일을 눌러 타워를 지으세요.</p>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
