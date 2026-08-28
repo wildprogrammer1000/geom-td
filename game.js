@@ -5,20 +5,65 @@
   const COLS = 12;
   const ROWS = 10;
   const TAU = Math.PI * 2;
+  const SAVE_KEY = "geomtd-save-v1";
+  const START_LIVES = 20;
 
-  const PATH_CELLS = [
-    [0, 2], [1, 2], [2, 2], [3, 2],
-    [3, 3], [3, 4], [3, 5], [3, 6],
-    [4, 6], [5, 6], [6, 6],
-    [6, 5], [6, 4], [6, 3], [6, 2], [6, 1],
-    [7, 1], [8, 1], [9, 1],
-    [9, 2], [9, 3], [9, 4], [9, 5], [9, 6], [9, 7],
-    [8, 7], [7, 7], [6, 7], [5, 7], [4, 7],
-    [4, 8], [4, 9],
-    [5, 9], [6, 9], [7, 9], [8, 9], [9, 9], [10, 9], [11, 9],
+  const STAGES = [
+    {
+      id: 0,
+      name: "안개 골목",
+      desc: "첫 번째 길목",
+      startGold: 80,
+      hpMul: 1,
+      path: [
+        [0, 2], [1, 2], [2, 2], [3, 2],
+        [3, 3], [3, 4], [3, 5], [3, 6],
+        [4, 6], [5, 6], [6, 6],
+        [6, 5], [6, 4], [6, 3], [6, 2], [6, 1],
+        [7, 1], [8, 1], [9, 1],
+        [9, 2], [9, 3], [9, 4], [9, 5], [9, 6], [9, 7],
+        [8, 7], [7, 7], [6, 7], [5, 7], [4, 7],
+        [4, 8], [4, 9],
+        [5, 9], [6, 9], [7, 9], [8, 9], [9, 9], [10, 9], [11, 9],
+      ],
+    },
+    {
+      id: 1,
+      name: "성수 다리",
+      desc: "다리 위 길",
+      startGold: 70,
+      hpMul: 1.15,
+      path: [
+        [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0],
+        [5, 1], [5, 2], [5, 3], [5, 4],
+        [6, 4], [7, 4], [8, 4], [9, 4],
+        [9, 5], [9, 6], [9, 7], [9, 8], [9, 9],
+        [10, 9], [11, 9],
+      ],
+    },
+    {
+      id: 2,
+      name: "묵점",
+      desc: "먹물 거점",
+      startGold: 90,
+      hpMul: 1.3,
+      path: [
+        [0, 5], [1, 5], [2, 5], [3, 5], [4, 5],
+        [4, 4], [4, 3], [4, 2],
+        [5, 2], [6, 2], [7, 2], [8, 2],
+        [8, 3], [8, 4], [8, 5], [8, 6], [8, 7],
+        [7, 7], [6, 7], [5, 7],
+        [5, 8], [5, 9],
+        [6, 9], [7, 9], [8, 9], [9, 9], [10, 9], [11, 9],
+      ],
+    },
   ];
 
-  const PATH_SET = new Set(PATH_CELLS.map(([c, r]) => c + "," + r));
+  let pathCells = STAGES[0].path.slice();
+  let pathSet = new Set(pathCells.map(([c, r]) => c + "," + r));
+  let currentStage = STAGES[0];
+  let currentScreen = "campaign";
+  let campaignSave = loadSave();
 
   const TOWERS = {
     single: {
@@ -129,24 +174,47 @@
   const ctx = canvas.getContext("2d");
   const stage = document.getElementById("stage");
   const overlay = document.getElementById("overlay");
-  const radialEl = document.getElementById("radial");
   const towerPanel = document.getElementById("tower-panel");
+  const towerTray = document.getElementById("tower-tray");
   const hintEl = document.getElementById("hint");
   const btnWave = document.getElementById("btn-wave");
   const btnPause = document.getElementById("btn-pause");
   const btnRestart = document.getElementById("btn-restart");
-  const btnStart = document.getElementById("btn-start");
+  const btnMenu = document.getElementById("btn-menu");
+  const btnOpenShop = document.getElementById("btn-open-shop");
+  const btnShopBack = document.getElementById("btn-shop-back");
+  const btnFakeAd = document.getElementById("btn-fake-ad");
+  const shopBonusEl = document.getElementById("shop-bonus");
+  const stageTitleEl = document.getElementById("stage-title");
+  const stageSubEl = document.getElementById("stage-sub");
+  const screenCampaign = document.getElementById("screen-campaign");
+  const screenShop = document.getElementById("screen-shop");
+  const screenBattle = document.getElementById("screen-battle");
+  const mapNodes = STAGES.map((s) => document.getElementById("node-" + s.id));
+  const trayItems = Array.from(document.querySelectorAll(".tray-item"));
+
+  const TOWER_TYPES = ["single", "splash", "slow"];
+  const towerSprites = {};
+  for (const id of TOWER_TYPES) {
+    const img = new Image();
+    img.src = "assets/tower-" + id + ".png";
+    towerSprites[id] = img;
+  }
 
   let cell = 32;
   let dpr = 1;
   let paper = null;
   let waypoints = [];
   let pathLen = 0;
+  const DRAG_THRESHOLD = 10;
+  let trayDrag = null; // { type, pointerId, sx, sy, active, el }
 
   const G = {
-    phase: "menu", // menu | play | pause | win | lose
+    phase: "idle", // idle | play | pause | win | lose
+    stageId: 0,
+    stageHpMul: 1,
     gold: 80,
-    lives: 20,
+    lives: START_LIVES,
     wave: 0,
     waveLive: false,
     spawnQ: [],
@@ -157,7 +225,10 @@
     shots: [],
     fx: [],
     floaters: [],
-    sel: null, // {type:'tile', c, r} | {type:'tower', i}
+    sel: null, // {type:'tower', i}
+    placeSelected: null, // single | splash | slow
+    hoverCell: null, // {c, r} | null
+    drag: null, // { type, clientX, clientY, c, r }
     shake: 0,
     flashLeak: 0,
     t: 0,
@@ -212,6 +283,105 @@
     } else if (kind === "deny") tone(140, 0.08, "square", 0.03);
   }
 
+  function defaultSave() {
+    return { stars: [0, 0, 0], unlocked: [true, false, false], bonusGold: 0 };
+  }
+
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return defaultSave();
+      const s = JSON.parse(raw);
+      return {
+        stars: s.stars || [0, 0, 0],
+        unlocked: s.unlocked || [true, false, false],
+        bonusGold: s.bonusGold || 0,
+      };
+    } catch {
+      return defaultSave();
+    }
+  }
+
+  function persistSave() {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(campaignSave));
+  }
+
+  function starsFromLives(lives) {
+    if (lives >= 18) return 3;
+    if (lives >= 6) return 2;
+    if (lives >= 1) return 1;
+    return 0;
+  }
+
+  function renderStars(n) {
+    let s = "";
+    for (let i = 0; i < 3; i++) s += i < n ? "★" : "☆";
+    return s;
+  }
+
+  function starsHtml(n) {
+    let h = "";
+    for (let i = 0; i < 3; i++) h += i < n ? "★" : '<span class="dim">☆</span>';
+    return h;
+  }
+
+  function renderCampaignMap() {
+    campaignSave = loadSave();
+    for (let i = 0; i < STAGES.length; i++) {
+      const node = mapNodes[i];
+      const starsEl = document.getElementById("stars-" + i);
+      if (!node) continue;
+      const unlocked = !!campaignSave.unlocked[i];
+      node.disabled = !unlocked;
+      if (starsEl) starsEl.textContent = renderStars(campaignSave.stars[i] || 0);
+    }
+    if (shopBonusEl) shopBonusEl.textContent = "보너스 골드 " + campaignSave.bonusGold;
+  }
+
+  function showScreen(name) {
+    currentScreen = name;
+    screenCampaign.classList.toggle("active", name === "campaign");
+    screenShop.classList.toggle("active", name === "shop");
+    screenBattle.classList.toggle("active", name === "battle");
+    if (name === "campaign") renderCampaignMap();
+    if (name === "shop") {
+      campaignSave = loadSave();
+      if (shopBonusEl) shopBonusEl.textContent = "보너스 골드 " + campaignSave.bonusGold;
+    }
+    if (name === "battle") resize();
+  }
+
+  function applyStagePath(stage) {
+    pathCells = stage.path.slice();
+    pathSet = new Set(pathCells.map(([c, r]) => c + "," + r));
+    currentStage = stage;
+  }
+
+  function startStage(stageId) {
+    const stage = STAGES[stageId];
+    if (!stage || !campaignSave.unlocked[stageId]) return;
+    campaignSave = loadSave();
+    applyStagePath(stage);
+    G.stageId = stageId;
+    G.stageHpMul = stage.hpMul;
+    stageTitleEl.textContent = stage.name;
+    stageSubEl.textContent = stage.desc;
+    showScreen("battle");
+    resetGame(stage.startGold + campaignSave.bonusGold);
+    if (campaignSave.bonusGold > 0) {
+      campaignSave.bonusGold = 0;
+      persistSave();
+    }
+  }
+
+  function exitToCampaign() {
+    G.phase = "idle";
+    clearPlacement();
+    hideUpgradePanel();
+    overlay.classList.add("hidden");
+    showScreen("campaign");
+  }
+
   // ---------- helpers ----------
   function clamp(v, a, b) {
     return v < a ? a : v > b ? b : v;
@@ -263,7 +433,7 @@
   }
 
   function rebuildWaypoints() {
-    waypoints = PATH_CELLS.map(([c, r]) => ({
+    waypoints = pathCells.map(([c, r]) => ({
       x: (c + 0.5) * cell,
       y: (r + 0.5) * cell,
     }));
@@ -307,7 +477,7 @@
   }
   function canBuild(c, r) {
     if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return false;
-    if (PATH_SET.has(occupyKey(c, r))) return false;
+    if (pathSet.has(occupyKey(c, r))) return false;
     if (towerAt(c, r)) return false;
     return true;
   }
@@ -347,11 +517,47 @@
     layoutMenus();
   }
 
+  function canAfford(type) {
+    const def = TOWERS[type];
+    return def && G.gold >= def.cost;
+  }
+
+  function updateTrayUI() {
+    if (G.placeSelected && !canAfford(G.placeSelected)) G.placeSelected = null;
+    for (const btn of trayItems) {
+      const type = btn.dataset.type;
+      const afford = canAfford(type);
+      btn.classList.toggle("selected", G.placeSelected === type);
+      btn.classList.toggle("cant-afford", !afford);
+      btn.classList.toggle("dragging", trayDrag && trayDrag.active && trayDrag.type === type);
+    }
+  }
+
+  function selectTowerType(type) {
+    if (!canAfford(type)) {
+      sfx("deny");
+      return;
+    }
+    if (G.placeSelected === type) G.placeSelected = null;
+    else {
+      G.placeSelected = type;
+      hideUpgradePanel();
+    }
+    updateTrayUI();
+  }
+
+  function clearPlacement() {
+    G.placeSelected = null;
+    G.hoverCell = null;
+    G.drag = null;
+    updateTrayUI();
+  }
+
   // ---------- game flow ----------
-  function resetGame() {
+  function resetGame(startGold) {
     G.phase = "play";
-    G.gold = 80;
-    G.lives = 20;
+    G.gold = startGold != null ? startGold : currentStage.startGold;
+    G.lives = START_LIVES;
     G.wave = 0;
     G.waveLive = false;
     G.spawnQ = [];
@@ -362,11 +568,15 @@
     G.fx = [];
     G.floaters = [];
     G.sel = null;
+    G.placeSelected = null;
+    G.hoverCell = null;
+    G.drag = null;
     G.shake = 0;
     G.flashLeak = 0;
-    hideMenus();
+    trayDrag = null;
+    hideUpgradePanel();
     overlay.classList.add("hidden");
-    hintEl.textContent = "빈 타일을 눌러 타워를 지으세요.";
+    hintEl.textContent = "아래에서 타워를 고른 뒤 빈 칸을 눌러 지으세요.";
     syncHud();
     setWaveBtn();
   }
@@ -376,6 +586,7 @@
     document.getElementById("stat-lives").textContent = G.lives;
     document.getElementById("stat-wave").textContent = G.wave;
     btnPause.textContent = G.phase === "pause" ? "계속" : "일시정지";
+    updateTrayUI();
   }
 
   function setWaveBtn() {
@@ -426,10 +637,31 @@
     G.phase = "win";
     sfx("win");
     hideMenus();
+    clearPlacement();
+    const stars = starsFromLives(G.lives);
+    const sid = G.stageId;
+    if (stars > (campaignSave.stars[sid] || 0)) campaignSave.stars[sid] = stars;
+    if (stars >= 1 && sid < STAGES.length - 1) campaignSave.unlocked[sid + 1] = true;
+    persistSave();
     overlay.innerHTML =
-      '<div class="card"><h2>승리</h2><p>여덟 길이 모두 말랐어요.<br/>이슬이 남았습니다.</p><button type="button" id="btn-again">다시 시작</button></div>';
+      '<div class="card"><h2>승리</h2>' +
+      '<div class="stars">' + starsHtml(stars) + "</div>" +
+      "<p>남은 목숨 " +
+      G.lives +
+      " — " +
+      stars +
+      "별을 얻었어요.</p>" +
+      '<div class="btn-row"><button type="button" id="btn-campaign">캠페인으로</button>' +
+      '<button type="button" class="btn-secondary" id="btn-again">다시</button></div></div>';
     overlay.classList.remove("hidden");
-    document.getElementById("btn-again").onclick = resetGame;
+    document.getElementById("btn-campaign").onclick = () => {
+      audio();
+      exitToCampaign();
+    };
+    document.getElementById("btn-again").onclick = () => {
+      audio();
+      startStage(G.stageId);
+    };
     setWaveBtn();
   }
 
@@ -437,10 +669,20 @@
     G.phase = "lose";
     sfx("lose");
     hideMenus();
+    clearPlacement();
     overlay.innerHTML =
-      '<div class="card"><h2>패배</h2><p>길이 뚫렸어요.<br/>목숨이 모두 닳았습니다.</p><button type="button" id="btn-again">다시 시작</button></div>';
+      '<div class="card"><h2>패배</h2><p>길이 뚫렸어요.<br/>목숨이 모두 닳았습니다.</p>' +
+      '<div class="btn-row"><button type="button" id="btn-campaign">캠페인으로</button>' +
+      '<button type="button" class="btn-secondary" id="btn-again">다시</button></div></div>';
     overlay.classList.remove("hidden");
-    document.getElementById("btn-again").onclick = resetGame;
+    document.getElementById("btn-campaign").onclick = () => {
+      audio();
+      exitToCampaign();
+    };
+    document.getElementById("btn-again").onclick = () => {
+      audio();
+      startStage(G.stageId);
+    };
     setWaveBtn();
   }
 
@@ -466,7 +708,7 @@
   function spawnEnemy(kindId) {
     const w = G.wave;
     const k = KINDS[kindId];
-    const hpMul = 1 + (w - 1) * 0.2;
+    const hpMul = (1 + (w - 1) * 0.2) * G.stageHpMul;
     const spMul = 1 + (w - 1) * 0.045;
     const p = posOnPath(0);
     const e = {
@@ -669,74 +911,66 @@
     return { c: Math.floor(x / cell), r: Math.floor(y / cell), x, y };
   }
 
+  function isOnCanvas(clientX, clientY) {
+    const rec = canvas.getBoundingClientRect();
+    return clientX >= rec.left && clientY >= rec.top && clientX <= rec.right && clientY <= rec.bottom;
+  }
+
+  function cellFromPointer(clientX, clientY) {
+    const { c, r } = canvasToCell(clientX, clientY);
+    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
+    return { c, r };
+  }
+
   function hideMenus() {
+    hideUpgradePanel();
+  }
+
+  function hideUpgradePanel() {
     G.sel = null;
-    radialEl.className = "";
-    radialEl.innerHTML = "";
     towerPanel.className = "";
     towerPanel.innerHTML = "";
   }
 
   function layoutMenus() {
-    if (!G.sel) return;
+    if (!G.sel || G.sel.type !== "tower") return;
+    const t = G.towers[G.sel.i];
+    if (!t) return;
     const rec = canvas.getBoundingClientRect();
     const stageRec = stage.getBoundingClientRect();
-    if (G.sel.type === "tile") {
-      const cx = rec.left - stageRec.left + (G.sel.c + 0.5) * (rec.width / COLS);
-      const cy = rec.top - stageRec.top + (G.sel.r + 0.5) * (rec.height / ROWS);
-      radialEl.style.left = cx + "px";
-      radialEl.style.top = cy + "px";
-    } else if (G.sel.type === "tower") {
-      const t = G.towers[G.sel.i];
-      if (!t) return;
-      const cx = rec.left - stageRec.left + (t.c + 0.5) * (rec.width / COLS);
-      const cy = rec.top - stageRec.top + (t.r + 0.5) * (rec.height / ROWS);
-      towerPanel.style.left = cx + "px";
-      towerPanel.style.top = cy + "px";
-    }
+    const cx = rec.left - stageRec.left + (t.c + 0.5) * (rec.width / COLS);
+    const cy = rec.top - stageRec.top + (t.r + 0.5) * (rec.height / ROWS);
+    towerPanel.style.left = cx + "px";
+    towerPanel.style.top = cy + "px";
+    clampUpgradePanel();
   }
 
-  function openRadial(c, r) {
-    G.sel = { type: "tile", c, r };
-    towerPanel.className = "";
-    towerPanel.innerHTML = "";
-    radialEl.innerHTML = "";
-    const types = ["single", "splash", "slow"];
-    const flipY = r < 2;
-    const angs = flipY
-      ? [Math.PI * 0.75, Math.PI / 2, Math.PI * 0.25]
-      : [-Math.PI * 0.75, -Math.PI / 2, -Math.PI * 0.25];
-    const radius = 56;
-    types.forEach((id, i) => {
-      const d = TOWERS[id];
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "rad-btn " + id;
-      b.innerHTML = d.name + "<small>" + d.cost + "</small>";
-      let x = Math.cos(angs[i]) * radius - 29;
-      let y = Math.sin(angs[i]) * radius - 29;
-      if (c <= 0) x += 18;
-      if (c >= COLS - 1) x -= 18;
-      b.style.left = x + "px";
-      b.style.top = y + "px";
-      if (G.gold < d.cost) b.disabled = true;
-      b.addEventListener("pointerdown", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (placeTower(c, r, id)) hideMenus();
-      });
-      radialEl.appendChild(b);
-    });
-    radialEl.className = "visible";
-    layoutMenus();
+  function clampUpgradePanel() {
+    if (!towerPanel.classList.contains("visible")) return;
+    const btn = towerPanel.querySelector(".up-btn");
+    if (!btn) return;
+    const stageRec = stage.getBoundingClientRect();
+    const panelRec = btn.getBoundingClientRect();
+    let dx = 0;
+    let dy = 0;
+    const pad = 6;
+    if (panelRec.left < stageRec.left + pad) dx = stageRec.left + pad - panelRec.left;
+    if (panelRec.right > stageRec.right - pad) dx = stageRec.right - pad - panelRec.right;
+    if (panelRec.top < stageRec.top + pad) dy = stageRec.top + pad - panelRec.top;
+    if (panelRec.bottom > stageRec.bottom - pad) dy = stageRec.bottom - pad - panelRec.bottom;
+    const left = parseFloat(btn.style.left) || 0;
+    const top = parseFloat(btn.style.top) || 0;
+    if (dx || dy) {
+      btn.style.left = left + dx + "px";
+      btn.style.top = top + dy + "px";
+    }
   }
 
   function openTower(i) {
     const t = G.towers[i];
     if (!t) return;
+    clearPlacement();
     G.sel = { type: "tower", i };
-    radialEl.className = "";
-    radialEl.innerHTML = "";
     towerPanel.innerHTML = "";
     const d = TOWERS[t.type];
     const b = document.createElement("button");
@@ -762,25 +996,24 @@
     layoutMenus();
   }
 
-  function onPointer(ev) {
+  function tryPlaceAt(c, r, type) {
+    if (!type || !canBuild(c, r)) return false;
+    return placeTower(c, r, type);
+  }
+
+  function onCanvasPointerDown(ev) {
     if (ev.button !== undefined && ev.button !== 0) return;
     audio();
-    if (G.phase !== "play") return;
-    const rec = canvas.getBoundingClientRect();
-    if (
-      ev.clientX < rec.left ||
-      ev.clientY < rec.top ||
-      ev.clientX > rec.right ||
-      ev.clientY > rec.bottom
-    ) {
-      return;
-    }
+    if (G.phase !== "play" || G.drag) return;
+    if (!isOnCanvas(ev.clientX, ev.clientY)) return;
     ev.preventDefault();
-    const { c, r } = canvasToCell(ev.clientX, ev.clientY);
-    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) {
+    const cellPos = cellFromPointer(ev.clientX, ev.clientY);
+    if (!cellPos) {
+      clearPlacement();
       hideMenus();
       return;
     }
+    const { c, r } = cellPos;
     const tw = towerAt(c, r);
     if (tw) {
       const i = G.towers.indexOf(tw);
@@ -788,24 +1021,171 @@
       else openTower(i);
       return;
     }
-    if (canBuild(c, r)) {
-      if (G.sel && G.sel.type === "tile" && G.sel.c === c && G.sel.r === r) hideMenus();
-      else openRadial(c, r);
+    if (G.placeSelected) {
+      if (canBuild(c, r)) {
+        tryPlaceAt(c, r, G.placeSelected);
+      } else {
+        clearPlacement();
+      }
       return;
     }
-    hideMenus();
+    if (!canBuild(c, r)) clearPlacement();
+    else hideMenus();
   }
 
-  canvas.addEventListener("pointerdown", onPointer, { passive: false });
+  function onCanvasPointerMove(ev) {
+    if (G.phase !== "play") return;
+    if (G.drag) {
+      G.drag.clientX = ev.clientX;
+      G.drag.clientY = ev.clientY;
+      const cellPos = isOnCanvas(ev.clientX, ev.clientY) ? cellFromPointer(ev.clientX, ev.clientY) : null;
+      G.drag.c = cellPos ? cellPos.c : -1;
+      G.drag.r = cellPos ? cellPos.r : -1;
+      if (ev.pointerType === "touch") ev.preventDefault();
+      return;
+    }
+    if (!G.placeSelected) {
+      G.hoverCell = null;
+      return;
+    }
+    const cellPos = isOnCanvas(ev.clientX, ev.clientY) ? cellFromPointer(ev.clientX, ev.clientY) : null;
+    G.hoverCell = cellPos;
+    if (ev.pointerType === "touch") ev.preventDefault();
+  }
+
+  function onCanvasPointerUp(ev) {
+    if (!G.drag || G.drag.pointerId !== ev.pointerId) return;
+    const type = G.drag.type;
+    const cellPos =
+      isOnCanvas(ev.clientX, ev.clientY) ? cellFromPointer(ev.clientX, ev.clientY) : null;
+    G.drag = null;
+    trayDrag = null;
+    updateTrayUI();
+    if (cellPos && canBuild(cellPos.c, cellPos.r)) {
+      tryPlaceAt(cellPos.c, cellPos.r, type);
+    }
+  }
+
+  function onTrayPointerDown(ev) {
+    const type = ev.currentTarget.dataset.type;
+    if (!canAfford(type)) {
+      sfx("deny");
+      return;
+    }
+    ev.preventDefault();
+    audio();
+    trayDrag = {
+      type,
+      pointerId: ev.pointerId,
+      sx: ev.clientX,
+      sy: ev.clientY,
+      active: false,
+      el: ev.currentTarget,
+    };
+    ev.currentTarget.setPointerCapture(ev.pointerId);
+  }
+
+  function onTrayPointerMove(ev) {
+    if (!trayDrag || trayDrag.pointerId !== ev.pointerId) return;
+    const dx = ev.clientX - trayDrag.sx;
+    const dy = ev.clientY - trayDrag.sy;
+    if (!trayDrag.active && Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
+      trayDrag.active = true;
+      hideMenus();
+      G.placeSelected = null;
+      G.drag = {
+        type: trayDrag.type,
+        pointerId: ev.pointerId,
+        clientX: ev.clientX,
+        clientY: ev.clientY,
+        c: -1,
+        r: -1,
+      };
+      updateTrayUI();
+    }
+    if (trayDrag.active && G.drag) {
+      G.drag.clientX = ev.clientX;
+      G.drag.clientY = ev.clientY;
+      const cellPos = isOnCanvas(ev.clientX, ev.clientY) ? cellFromPointer(ev.clientX, ev.clientY) : null;
+      G.drag.c = cellPos ? cellPos.c : -1;
+      G.drag.r = cellPos ? cellPos.r : -1;
+    }
+    ev.preventDefault();
+  }
+
+  function onTrayPointerUp(ev) {
+    if (!trayDrag || trayDrag.pointerId !== ev.pointerId) return;
+    const type = trayDrag.type;
+    const wasDrag = trayDrag.active;
+    trayDrag.el.releasePointerCapture(ev.pointerId);
+    trayDrag = null;
+    if (wasDrag && G.drag) {
+      const cellPos =
+        isOnCanvas(ev.clientX, ev.clientY) ? cellFromPointer(ev.clientX, ev.clientY) : null;
+      G.drag = null;
+      updateTrayUI();
+      if (cellPos && canBuild(cellPos.c, cellPos.r)) tryPlaceAt(cellPos.c, cellPos.r, type);
+      return;
+    }
+    G.drag = null;
+    selectTowerType(type);
+    ev.preventDefault();
+  }
+
+  function onTrayPointerCancel(ev) {
+    if (!trayDrag || trayDrag.pointerId !== ev.pointerId) return;
+    trayDrag = null;
+    G.drag = null;
+    updateTrayUI();
+  }
+
+  canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
+  canvas.addEventListener("pointermove", onCanvasPointerMove, { passive: false });
+  canvas.addEventListener("pointerup", onCanvasPointerUp, { passive: false });
+  canvas.addEventListener("pointercancel", onCanvasPointerUp, { passive: false });
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-  canvas.addEventListener("pointermove", (e) => {
-    if (e.pointerType === "touch") e.preventDefault();
-  }, { passive: false });
+
+  for (const btn of trayItems) {
+    btn.addEventListener("pointerdown", onTrayPointerDown);
+    btn.addEventListener("pointermove", onTrayPointerMove);
+    btn.addEventListener("pointerup", onTrayPointerUp);
+    btn.addEventListener("pointercancel", onTrayPointerCancel);
+  }
+
   overlay.addEventListener("pointerdown", (e) => e.stopPropagation());
 
-  btnStart.addEventListener("click", () => {
+  for (let i = 0; i < mapNodes.length; i++) {
+    mapNodes[i].addEventListener("click", () => {
+      audio();
+      startStage(i);
+    });
+  }
+  btnOpenShop.addEventListener("click", () => {
     audio();
-    resetGame();
+    showScreen("shop");
+  });
+  btnShopBack.addEventListener("click", () => {
+    audio();
+    showScreen("campaign");
+  });
+  btnFakeAd.addEventListener("click", () => {
+    audio();
+    if (btnFakeAd.disabled) return;
+    btnFakeAd.disabled = true;
+    btnFakeAd.textContent = "재생 중…";
+    setTimeout(() => {
+      campaignSave = loadSave();
+      campaignSave.bonusGold += 30;
+      persistSave();
+      btnFakeAd.disabled = false;
+      btnFakeAd.textContent = "시청";
+      if (shopBonusEl) shopBonusEl.textContent = "보너스 골드 " + campaignSave.bonusGold;
+      sfx("up");
+    }, 1000);
+  });
+  btnMenu.addEventListener("click", () => {
+    audio();
+    if (G.phase === "play" || G.phase === "pause") togglePause();
   });
   btnWave.addEventListener("click", () => {
     audio();
@@ -817,8 +1197,32 @@
   });
   btnRestart.addEventListener("click", () => {
     audio();
-    resetGame();
+    startStage(G.stageId);
   });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (currentScreen !== "battle") return;
+    if (G.placeSelected || G.drag) {
+      clearPlacement();
+      trayDrag = null;
+      e.preventDefault();
+    } else if (G.phase === "play") togglePause();
+    else if (G.phase === "pause") togglePause();
+  });
+
+  document.addEventListener(
+    "pointerdown",
+    (ev) => {
+      if (currentScreen !== "battle" || G.phase !== "play") return;
+      if (!G.placeSelected && !G.drag) return;
+      const t = ev.target;
+      if (canvas.contains(t) || towerTray.contains(t)) return;
+      clearPlacement();
+      trayDrag = null;
+    },
+    true
+  );
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && G.phase === "play") togglePause();
@@ -828,6 +1232,7 @@
 
   // ---------- update ----------
   function update(dt) {
+    if (currentScreen !== "battle") return;
     if (G.phase !== "play") {
       G.t += dt;
       return;
@@ -939,6 +1344,7 @@
   }
 
   function draw() {
+    if (currentScreen !== "battle") return;
     const W = cell * COLS,
       H = cell * ROWS;
     ctx.save();
@@ -958,7 +1364,7 @@
       for (let c = 0; c < COLS; c++) {
         const x = c * cell,
           y = r * cell;
-        const path = PATH_SET.has(occupyKey(c, r));
+        const path = pathSet.has(occupyKey(c, r));
         if (!path) {
           ctx.fillStyle = "rgba(0,0,0,0.14)";
           ctx.fillRect(x + 1, y + cell - 4, cell - 2, 3);
@@ -1001,17 +1407,8 @@
     ctx.fillStyle = "rgba(196,92,74,0.55)";
     ctx.fillText("출", b.x, b.y);
 
-    // hover / selected tile
-    if (G.sel && G.sel.type === "tile") {
-      const x = G.sel.c * cell,
-        y = G.sel.r * cell;
-      ctx.fillStyle = "rgba(196,165,116,0.12)";
-      roundRect(x + 2, y + 2, cell - 4, cell - 4, 5);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(196,165,116,0.55)";
-      ctx.lineWidth = 1.4;
-      ctx.stroke();
-    }
+    // placement ghost / hover preview
+    drawPlacementGhost();
 
     // grid dots
     ctx.fillStyle = "rgba(232,220,200,0.08)";
@@ -1070,45 +1467,50 @@
     ctx.closePath();
   }
 
-  function drawTowers() {
-    for (const t of G.towers) {
-      const d = TOWERS[t.type];
-      const pop = 1 + Math.sin(Math.min(1, 1 - t.pop) * Math.PI) * 0.18 * (t.pop > 0 ? 1 : 0);
-      const extra = t.pop > 0 ? 1 + t.pop * 0.35 : 1;
-      const sc = extra * (t.pop > 0.02 ? pop : 1);
-      ctx.save();
-      ctx.translate(t.x, t.y);
+  function drawTowerArt(x, y, type, opts) {
+    const alpha = (opts && opts.alpha) != null ? opts.alpha : 1;
+    const scale = (opts && opts.scale) != null ? opts.scale : 1;
+    const invalid = opts && opts.invalid;
+    const pop = (opts && opts.pop) || 0;
+    const img = towerSprites[type];
+    const size = cell * 0.9 * scale;
+
+    ctx.save();
+    ctx.translate(x, y);
+    if (pop > 0) {
+      const sc = 1 + Math.sin(Math.min(1, 1 - pop) * Math.PI) * 0.18 * pop;
       ctx.scale(sc, sc);
-      ctx.beginPath();
-      ctx.ellipse(0, cell * 0.18, cell * 0.28, cell * 0.09, 0, 0, TAU);
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fill();
+    }
 
-      ctx.rotate(t.ang + Math.PI / 2);
+    ctx.beginPath();
+    ctx.ellipse(0, cell * 0.2, cell * 0.3, cell * 0.1, 0, 0, TAU);
+    ctx.fillStyle = "rgba(0,0,0,0.38)";
+    ctx.fill();
 
-      if (t.type === "single") {
+    if (img && img.complete && img.naturalWidth) {
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, -size / 2, -size / 2 - cell * 0.04, size, size);
+      if (invalid) {
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.fillStyle = "rgba(196,92,74,0.42)";
+        ctx.fillRect(-size / 2, -size / 2 - cell * 0.04, size, size);
+      }
+    } else {
+      const d = TOWERS[type];
+      ctx.globalAlpha = alpha;
+      if (type === "single") {
         drawPoly(0, 0, cell * 0.3, 4, 0);
         ctx.fillStyle = d.colorDim;
         ctx.fill();
         ctx.strokeStyle = d.color;
         ctx.lineWidth = 1.8;
         ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(0, 0, cell * 0.1, 0, TAU);
-        ctx.fillStyle = d.color;
-        ctx.fill();
-        ctx.fillRect(-2, -cell * 0.36, 4, cell * 0.22);
-      } else if (t.type === "splash") {
+      } else if (type === "splash") {
         drawPoly(0, 0, cell * 0.32, 6, 0);
         ctx.fillStyle = d.colorDim;
         ctx.fill();
         ctx.strokeStyle = d.color;
         ctx.lineWidth = 1.8;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(0, 0, cell * 0.12, 0, TAU);
-        ctx.strokeStyle = d.color;
-        ctx.lineWidth = 2;
         ctx.stroke();
       } else {
         ctx.beginPath();
@@ -1118,19 +1520,68 @@
         ctx.strokeStyle = d.color;
         ctx.lineWidth = 1.8;
         ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(0, 0, cell * 0.16, 0, TAU);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(0, 0, 3, 0, TAU);
-        ctx.fillStyle = d.color;
+      }
+      if (invalid) {
+        ctx.fillStyle = "rgba(196,92,74,0.35)";
         ctx.fill();
       }
-      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawPlacementGhost() {
+    let type = G.placeSelected;
+    let c = -1;
+    let r = -1;
+    let alpha = 0.62;
+    let atPointer = false;
+    let px = 0;
+    let py = 0;
+
+    if (G.drag) {
+      type = G.drag.type;
+      c = G.drag.c;
+      r = G.drag.r;
+      alpha = 0.72;
+      if (c < 0 || r < 0) {
+        atPointer = true;
+        const rec = canvas.getBoundingClientRect();
+        px = ((G.drag.clientX - rec.left) / rec.width) * (cell * COLS);
+        py = ((G.drag.clientY - rec.top) / rec.height) * (cell * ROWS);
+      }
+    } else if (G.placeSelected && G.hoverCell) {
+      c = G.hoverCell.c;
+      r = G.hoverCell.r;
+    } else {
+      return;
+    }
+
+    if (!type) return;
+
+    if (!atPointer && c >= 0 && r >= 0) {
+      const x = c * cell;
+      const y = r * cell;
+      const valid = canBuild(c, r);
+      ctx.fillStyle = valid ? "rgba(94,200,200,0.14)" : "rgba(196,92,74,0.22)";
+      roundRect(x + 2, y + 2, cell - 4, cell - 4, 5);
+      ctx.fill();
+      ctx.strokeStyle = valid ? "rgba(94,200,200,0.5)" : "rgba(196,92,74,0.65)";
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      drawTowerArt((c + 0.5) * cell, (r + 0.5) * cell, type, { alpha, invalid: !valid });
+    } else if (atPointer) {
+      drawTowerArt(px, py, type, { alpha: alpha * 0.85, scale: 0.95, invalid: true });
+    }
+  }
+
+  function drawTowers() {
+    for (const t of G.towers) {
+      const pop = t.pop > 0 ? t.pop : 0;
+      drawTowerArt(t.x, t.y, t.type, { pop });
 
       if (t.up) {
         ctx.beginPath();
-        ctx.arc(t.x + cell * 0.22, t.y - cell * 0.22, 3.2, 0, TAU);
+        ctx.arc(t.x + cell * 0.22, t.y - cell * 0.26, 3.2, 0, TAU);
         ctx.fillStyle = "#e8dcc8";
         ctx.fill();
       }
@@ -1251,9 +1702,7 @@
     requestAnimationFrame(frame);
   }
 
-  resize();
-  syncHud();
-  setWaveBtn();
-  btnWave.disabled = true;
+  renderCampaignMap();
+  showScreen("campaign");
   requestAnimationFrame(frame);
 })();
